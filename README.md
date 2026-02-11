@@ -1,3 +1,6 @@
+# yt-halo
+A minimalist, privacy-first YouTube focus tool. Chrome Extension (Manifest V3)
+
 This is a [Plasmo extension](https://docs.plasmo.com/) project bootstrapped with [`plasmo init`](https://www.npmjs.com/package/plasmo).
 
 ## Getting Started
