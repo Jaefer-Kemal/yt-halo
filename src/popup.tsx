@@ -1,17 +1,17 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
+
+import { useStorage } from "@plasmohq/storage/hook"
+
+import { KEYS } from "~/src/storage/settings"
 
 import "./style.css"
 
-// --- TYPES ---
 type ViewState = "HOME" | "SETTINGS"
-type Theme = "dark" | "light"
-type ShortsStrategy = "hide" | "block" | "allow-5m"
 
 function PopupApp() {
-  const [view, setView] = useState<ViewState>("HOME")
-  const [theme, setTheme] = useState<Theme>("dark") // Default to DARK
+  const [view, setView] = useStorage<ViewState>("popup-view", "HOME")
+  const [theme, setTheme] = useStorage("theme", "dark")
 
-  // Apply Theme Class to HTML tag
   useEffect(() => {
     const root = document.documentElement
     if (theme === "dark") {
@@ -23,23 +23,18 @@ function PopupApp() {
 
   return (
     <div className="w-[400px] h-[600px] bg-background-light dark:bg-background-dark text-slate-900 dark:text-white flex flex-col overflow-hidden relative selection:bg-primary selection:text-background-dark font-display transition-colors duration-300">
-      {/* 1. HOME VIEW */}
       {view === "HOME" && (
         <HomeView onOpenSettings={() => setView("SETTINGS")} />
       )}
 
-      {/* 2. SETTINGS VIEW */}
       {view === "SETTINGS" && (
         <SettingsView
           onBack={() => setView("HOME")}
           currentTheme={theme}
-          onToggleTheme={() =>
-            setTheme((prev) => (prev === "dark" ? "light" : "dark"))
-          }
+          onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
         />
       )}
 
-      {/* GLOBAL BACKGROUND ORBS */}
       <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
         <div className="absolute -right-[10%] -top-[10%] h-[300px] w-[300px] rounded-full bg-teal-100/40 opacity-50 blur-[80px] dark:bg-primary/10 transition-colors duration-500"></div>
         <div className="absolute -bottom-[10%] -left-[10%] h-[250px] w-[250px] rounded-full bg-teal-200/30 opacity-40 blur-[80px] dark:bg-primary/5 transition-colors duration-500"></div>
@@ -48,13 +43,33 @@ function PopupApp() {
   )
 }
 
-// --- SUB-COMPONENT: HOME ---
 function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
-  const [isTimeLimitActive, setIsTimeLimitActive] = useState(true)
+  // --- STORAGE LOGIC ---
+  const [dailyLimit] = useStorage(KEYS.DAILY_LIMIT, 60)
+  const [dailyUsage] = useStorage(KEYS.DAILY_USAGE, 0)
+  const [isTimeLimitActive, setIsTimeLimitActive] = useStorage(
+    "isTimeLimitActive",
+    true
+  )
+  const [hideShorts, setHideShorts] = useStorage(KEYS.HIDE_SHORTS, true)
+  const [scrollLimitActive, setScrollLimitActive] = useStorage(
+    "scrollLimitActive",
+    true
+  )
+  const [restoreDislikes, setRestoreDislikes] = useStorage(
+    "restoreDislikes",
+    false
+  )
+  const [isPaused, setIsPaused] = useStorage("isPaused", false)
+  const [isBlocked] = useStorage(KEYS.IS_BLOCKED, false)
+
+  // Calculate Time Remaining
+  const remainingMinutes = Math.max(0, dailyLimit - Math.floor(dailyUsage))
+  const hours = Math.floor(remainingMinutes / 60)
+  const mins = remainingMinutes % 60
 
   return (
     <div className="flex flex-col h-full animate-in fade-in slide-in-from-left-4 duration-300">
-      {/* Header */}
       <header className="flex items-center justify-between px-6 py-5 bg-white/50 backdrop-blur-sm dark:bg-[#112222]/50 sticky top-0 z-20 transition-colors">
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-gray-900 dark:text-white text-[28px]">
@@ -66,15 +81,15 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-primary"></div>
+            <div
+              className={`h-2 w-2 rounded-full bg-primary ${!isPaused ? "animate-pulse" : "opacity-50"}`}></div>
             <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-              Active
+              {isPaused ? "Paused" : "Active"}
             </p>
           </div>
           <button
             onClick={onOpenSettings}
-            className="group flex items-center justify-center text-gray-400 hover:text-gray-900 dark:text-gray-500 dark:hover:text-white transition-colors"
-            title="Settings">
+            className="group flex items-center justify-center text-gray-400 hover:text-gray-900 dark:text-gray-500 dark:hover:text-white transition-colors">
             <span className="material-symbols-outlined transition-transform group-hover:rotate-90">
               settings
             </span>
@@ -82,16 +97,16 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
         </div>
       </header>
 
-      {/* Scrollable Content */}
       <main className="flex-1 overflow-y-auto halo-scroll px-6 pb-6">
-        {/* Timer Display */}
         <div
           className={`transition-all duration-300 ease-in-out overflow-hidden ${isTimeLimitActive ? "max-h-[200px] opacity-100" : "max-h-0 opacity-0"}`}>
           <div className="flex flex-col items-center justify-center py-8">
             <div className="relative mb-2">
               <div className="absolute inset-0 -z-10 blur-[40px] opacity-20 bg-primary rounded-full"></div>
               <h1 className="text-5xl font-light tracking-tighter text-gray-900 dark:text-white">
-                1<span className="text-gray-400 dark:text-gray-600">h</span> 20
+                {hours}
+                <span className="text-gray-400 dark:text-gray-600">h</span>{" "}
+                {mins}
                 <span className="text-gray-400 dark:text-gray-600">m</span>
               </h1>
             </div>
@@ -101,22 +116,22 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
           </div>
         </div>
 
-        {/* Toggles */}
         <div className="flex flex-col gap-3 py-2">
           <ToggleCard
             icon="visibility_off"
             title="Hide Shorts"
             subtitle="Remove from feed"
-            defaultChecked={true}
+            checked={hideShorts}
+            onChange={setHideShorts}
           />
           <ToggleCard
             icon="swap_vert"
             title="Scroll Limit"
             subtitle="Stop infinite scroll"
-            defaultChecked={true}
+            checked={scrollLimitActive}
+            onChange={setScrollLimitActive}
           />
 
-          {/* Time Limit Special Toggle */}
           <div className="flex items-center justify-between rounded-lg p-2 transition-colors hover:bg-gray-50 dark:hover:bg-[#1a2e2e]">
             <div className="flex items-center gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-[#234848] text-gray-600 dark:text-white">
@@ -147,20 +162,25 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
           <ToggleCard
             icon="thumb_down"
             title="Restore Dislikes"
-            subtitle="Show counter"
-            defaultChecked={false}
+            subtitle={
+              isBlocked ? "Disabled: Time limit reached" : "Show counter"
+            }
+            checked={restoreDislikes}
+            onChange={setRestoreDislikes}
+            disabled={isBlocked}
           />
         </div>
       </main>
 
-      {/* Footer */}
       <div className="mt-auto px-6 py-6 bg-background-light dark:bg-background-dark border-t border-gray-100 dark:border-white/5 z-20">
-        <button className="group relative flex w-full items-center justify-center gap-3 rounded-xl bg-gray-900 dark:bg-primary px-6 py-4 transition-all hover:bg-gray-800 dark:hover:bg-[#3ffbfb] active:scale-[0.98] shadow-lg shadow-gray-900/20 dark:shadow-primary/20">
-          <span className="material-symbols-outlined text-white dark:text-black">
-            pause_circle
+        <button
+          onClick={() => setIsPaused(!isPaused)}
+          className={`group relative flex w-full items-center justify-center gap-3 rounded-xl px-6 py-4 transition-all active:scale-[0.98] shadow-lg ${isPaused ? "bg-primary text-black" : "bg-gray-900 dark:bg-primary text-white dark:text-black shadow-primary/20"}`}>
+          <span className="material-symbols-outlined">
+            {isPaused ? "play_circle" : "pause_circle"}
           </span>
-          <span className="text-lg font-bold text-white dark:text-black">
-            Pause YouTube
+          <span className="text-lg font-bold">
+            {isPaused ? "Resume YouTube" : "Pause YouTube"}
           </span>
         </button>
       </div>
@@ -168,24 +188,21 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
   )
 }
 
-// --- SUB-COMPONENT: SETTINGS ---
-interface SettingsProps {
-  onBack: () => void
-  currentTheme: Theme
-  onToggleTheme: () => void
-}
-
-function SettingsView({ onBack, currentTheme, onToggleTheme }: SettingsProps) {
-  // --- STATE ---
-  const [dailyLimit, setDailyLimit] = useState(45)
-  const [scrollLimit, setScrollLimit] = useState(10)
-  const [shortsStrategy, setShortsStrategy] = useState<ShortsStrategy>("hide")
+function SettingsView({ onBack, currentTheme, onToggleTheme }: any) {
+  const [dailyLimit, setDailyLimit] = useStorage(KEYS.DAILY_LIMIT, 60)
+  const [scrollLimitCount, setScrollLimitCount] = useStorage(
+    KEYS.SCROLL_LIMIT_COUNT,
+    10
+  )
+  const [shortsStrategy, setShortsStrategy] = useStorage(
+    "shortsStrategy",
+    "hide"
+  )
 
   const progressPercentage = (dailyLimit / 120) * 100
 
   return (
     <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300 bg-background-light dark:bg-background-dark">
-      {/* Header */}
       <header className="sticky top-0 z-50 flex items-center justify-between bg-background-light/95 px-4 py-4 backdrop-blur-md dark:bg-background-dark/95 border-b border-gray-100 dark:border-white/5">
         <button
           onClick={onBack}
@@ -199,8 +216,8 @@ function SettingsView({ onBack, currentTheme, onToggleTheme }: SettingsProps) {
         </h1>
         <button
           onClick={() => {
-            setDailyLimit(45)
-            setScrollLimit(10)
+            setDailyLimit(60)
+            setScrollLimitCount(10)
             setShortsStrategy("hide")
           }}
           className="flex items-center justify-center rounded-full px-3 py-1 text-sm font-semibold text-teal-600 transition-opacity hover:opacity-80 dark:text-primary">
@@ -208,9 +225,7 @@ function SettingsView({ onBack, currentTheme, onToggleTheme }: SettingsProps) {
         </button>
       </header>
 
-      {/* Settings Content */}
       <main className="flex-1 overflow-y-auto halo-scroll px-5 py-6 space-y-6">
-        {/* Time Slider */}
         <section className="space-y-3">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-white uppercase tracking-wider opacity-80">
             Daily Allowance
@@ -247,7 +262,6 @@ function SettingsView({ onBack, currentTheme, onToggleTheme }: SettingsProps) {
           </div>
         </section>
 
-        {/* Scroll Limit */}
         <section className="space-y-3">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-white uppercase tracking-wider opacity-80">
             Feed Control
@@ -263,17 +277,19 @@ function SettingsView({ onBack, currentTheme, onToggleTheme }: SettingsProps) {
             </div>
             <div className="flex items-center gap-3 bg-slate-50 dark:bg-surface-highlight rounded-full p-1 border border-slate-100 dark:border-white/5">
               <button
-                onClick={() => setScrollLimit((prev) => Math.max(1, prev - 1))}
+                onClick={() =>
+                  setScrollLimitCount(Math.max(1, scrollLimitCount - 1))
+                }
                 className="size-7 flex items-center justify-center rounded-full bg-white dark:bg-surface-dark text-slate-600 dark:text-gray-300 shadow-sm hover:text-teal-600 active:scale-95 transition-transform">
                 <span className="material-symbols-outlined text-xs">
                   remove
                 </span>
               </button>
               <span className="w-6 text-center font-bold text-slate-900 dark:text-white text-sm">
-                {scrollLimit}
+                {scrollLimitCount}
               </span>
               <button
-                onClick={() => setScrollLimit((prev) => prev + 1)}
+                onClick={() => setScrollLimitCount(scrollLimitCount + 1)}
                 className="size-7 flex items-center justify-center rounded-full bg-teal-500 dark:bg-primary text-white dark:text-black shadow-md active:scale-95 transition-transform">
                 <span className="material-symbols-outlined text-xs">add</span>
               </button>
@@ -281,7 +297,6 @@ function SettingsView({ onBack, currentTheme, onToggleTheme }: SettingsProps) {
           </div>
         </section>
 
-        {/* Shorts Strategy */}
         <section className="space-y-3">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-white uppercase tracking-wider opacity-80">
             Shorts
@@ -307,13 +322,11 @@ function SettingsView({ onBack, currentTheme, onToggleTheme }: SettingsProps) {
           </div>
         </section>
 
-        {/* App Settings / Appearance */}
         <section className="space-y-3">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-white uppercase tracking-wider opacity-80">
             App Settings
           </h3>
           <div className="rounded-2xl bg-white dark:bg-surface-dark border border-slate-100 dark:border-white/5 overflow-hidden">
-            {/* Theme Toggle */}
             <div className="w-full flex items-center justify-between p-4 border-b border-slate-100 dark:border-white/5">
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-slate-900 dark:text-white">
@@ -331,8 +344,6 @@ function SettingsView({ onBack, currentTheme, onToggleTheme }: SettingsProps) {
                 />
               </button>
             </div>
-
-            {/* Creator Info */}
             <button
               onClick={() => window.open("https://github.com/jaefer", "_blank")}
               className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors border-b border-slate-100 dark:border-white/5">
@@ -343,8 +354,6 @@ function SettingsView({ onBack, currentTheme, onToggleTheme }: SettingsProps) {
                 open_in_new
               </span>
             </button>
-
-            {/* About */}
             <div className="w-full flex items-center justify-between p-4">
               <span className="text-sm font-medium text-slate-900 dark:text-white">
                 Version
@@ -358,7 +367,6 @@ function SettingsView({ onBack, currentTheme, onToggleTheme }: SettingsProps) {
   )
 }
 
-// Helper: Shorts Button
 function ShortsBtn({
   label,
   active,
@@ -371,20 +379,23 @@ function ShortsBtn({
   return (
     <button
       onClick={onClick}
-      className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all duration-200 ${
-        active
-          ? "bg-white shadow-sm text-slate-900 dark:bg-primary dark:text-background-dark"
-          : "text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
-      }`}>
+      className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all duration-200 ${active ? "bg-white shadow-sm text-slate-900 dark:bg-primary dark:text-background-dark" : "text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"}`}>
       {label}
     </button>
   )
 }
 
-// Helper: Toggle Card
-function ToggleCard({ icon, title, subtitle, defaultChecked }: any) {
+function ToggleCard({
+  icon,
+  title,
+  subtitle,
+  checked,
+  onChange,
+  disabled
+}: any) {
   return (
-    <div className="flex items-center justify-between rounded-lg p-2 transition-colors hover:bg-gray-50 dark:hover:bg-[#1a2e2e]">
+    <div
+      className={`flex items-center justify-between rounded-lg p-2 transition-colors hover:bg-gray-50 dark:hover:bg-[#1a2e2e] ${disabled ? "opacity-50 pointer-events-none" : ""}`}>
       <div className="flex items-center gap-4">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-[#234848] text-gray-600 dark:text-white">
           <span className="material-symbols-outlined">{icon}</span>
@@ -400,9 +411,11 @@ function ToggleCard({ icon, title, subtitle, defaultChecked }: any) {
       </div>
       <label className="relative inline-flex cursor-pointer items-center">
         <input
-          defaultChecked={defaultChecked}
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
           className="peer sr-only"
           type="checkbox"
+          disabled={disabled}
         />
         <div className="peer h-7 w-12 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-6 after:w-6 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:bg-gray-700 dark:border-gray-600"></div>
       </label>
