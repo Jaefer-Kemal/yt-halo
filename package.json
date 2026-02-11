@@ -28,8 +28,38 @@
     "typescript": "5.3.3"
   },
   "manifest": {
+    "manifest_version": 3,
+    "permissions": [
+      "storage"
+    ],
     "host_permissions": [
-      "https://*/*"
+      "https://www.youtube.com/*",
+      "https://m.youtube.com/*",
+      "https://youtu.be/*",
+      "https://returnyoutubedislikeapi.com/*"
+    ],
+    "optional_host_permissions": [
+      "https://studio.youtube.com/*"
+    ],
+    "background": {
+      "service_worker": "background.js",
+      "type": "module"
+    },
+    "action": {
+      "default_title": "YT Halo",
+      "default_popup": "popup.html"
+    },
+    "web_accessible_resources": [
+      {
+        "resources": [
+          "popup.html",
+          "options.html"
+        ],
+        "matches": [
+          "https://www.youtube.com/*",
+          "https://m.youtube.com/*"
+        ]
+      }
     ]
   }
 }
