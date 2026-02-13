@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 import { useStorage } from "@plasmohq/storage/hook"
 
@@ -44,6 +44,7 @@ function PopupApp() {
 }
 
 function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const [showRestoreModal, setShowRestoreModal] = useState(false)
   // --- STORAGE LOGIC ---
   const [dailyLimit] = useStorage(KEYS.DAILY_LIMIT, 60)
   const [dailyUsage] = useStorage(KEYS.DAILY_USAGE, 0)
@@ -67,6 +68,31 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
   const remainingMinutes = Math.max(0, dailyLimit - Math.floor(dailyUsage))
   const hours = Math.floor(remainingMinutes / 60)
   const mins = remainingMinutes % 60
+
+  // Handler for restore dislikes toggle
+  // Use chrome.storage.local.set for correct logic
+  const handleRestoreDislikesChange = (checked: boolean) => {
+    if (!checked) {
+      setShowRestoreModal(true)
+    } else {
+      chrome.storage?.local.set({ restoreDislikes: true }, () => {
+        setRestoreDislikes(true)
+        window.location.reload()
+      })
+    }
+  }
+
+  const confirmDisableRestore = () => {
+    chrome.storage?.local.set({ restoreDislikes: false }, () => {
+      setRestoreDislikes(false)
+      setShowRestoreModal(false)
+      window.location.reload()
+    })
+  }
+
+  const cancelDisableRestore = () => {
+    setShowRestoreModal(false)
+  }
 
   return (
     <div className="flex flex-col h-full animate-in fade-in slide-in-from-left-4 duration-300">
@@ -166,12 +192,28 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
               isBlocked ? "Disabled: Time limit reached" : "Show counter"
             }
             checked={restoreDislikes}
-            onChange={setRestoreDislikes}
+            onChange={handleRestoreDislikesChange}
             disabled={isBlocked}
           />
         </div>
       </main>
 
+      {/* Confirmation Modal for disabling restore dislikes */}
+      {showRestoreModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#162a2a] rounded-2xl p-6 shadow-xl max-w-xs w-full text-center border border-gray-200 dark:border-[#234848]/50">
+            <div className="mb-4">
+              <span className="material-symbols-outlined text-4xl text-primary mb-2">warning</span>
+              <h2 className="text-lg font-bold mb-2">Disable Restore Dislikes?</h2>
+              <p className="text-sm text-gray-600 dark:text-[#92c9c9]">Are you sure you want to disable the restore dislikes feature?</p>
+            </div>
+            <div className="flex gap-3 mt-4 justify-center">
+              <button onClick={confirmDisableRestore} className="px-4 py-2 rounded-lg bg-primary text-black font-semibold">Yes, Disable</button>
+              <button onClick={cancelDisableRestore} className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-[#234848] text-gray-900 dark:text-white font-semibold">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="mt-auto px-6 py-6 bg-background-light dark:bg-background-dark border-t border-gray-100 dark:border-white/5 z-20">
         <button
           onClick={() => setIsPaused(!isPaused)}

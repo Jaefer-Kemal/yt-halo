@@ -93,9 +93,8 @@ const getWatchDislikeTextContainer = (): HTMLElement | null => {
     if (btn) {
       const textSpan = document.createElement("span")
       textSpan.id = "text"
-      textSpan.className = "halo-dislike-text"
+      textSpan.className = "halo-dislike-text yt-spec-button-shape-next__button-text-content"
       textSpan.style.marginLeft = "6px"
-      textSpan.style.fontSize = "12px"
       btn.appendChild(textSpan)
       btn.style.width = "auto"
       btn.style.display = "flex"
