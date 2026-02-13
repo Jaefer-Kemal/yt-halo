@@ -4,15 +4,16 @@ import { KEYS, storage } from "~/src/storage/settings"
 
 export const config: PlasmoCSConfig = {
   matches: ["*://*.youtube.com/*"],
-  run_at: "document_end"
+  run_at: "document_start" 
 }
 
 // --------------------
 // State
 // --------------------
-
 let currentVideoId = ""
-let likesValue = 0
+let lastFetchedId = ""
+let dislikesCache = "Dislike"
+let isUpdating = false
 let dislikesValue = 0
 
 // --------------------
@@ -145,13 +146,9 @@ const fetchVotes = async (videoId: string) => {
 // --------------------
 
 const updateDom = async () => {
-  const [active, isBlocked] = await Promise.all([
-    storage.get(KEYS.RESTORE_DISLIKES),
-    storage.get(KEYS.IS_BLOCKED)
-  ])
-
-  if (!active || isBlocked) return
-
+  // Prevent multiple simultaneous fetch calls
+  if (isUpdating) return
+  
   const videoId = getVideoId()
   if (!videoId) return
 
@@ -161,30 +158,71 @@ const updateDom = async () => {
 
   if (!textContainer) return
 
-  if (videoId !== currentVideoId || textContainer.innerText === "Dislike") {
+  // Check if we need to update:
+  // 1. Video changed OR 
+  // 2. YouTube reset the text to "Dislike" (the "escape" problem)
+  const isDefaultText = textContainer.innerText.trim() === "Dislike" || textContainer.innerText.trim() === ""
+  
+  if (videoId !== currentVideoId || isDefaultText) {
     currentVideoId = videoId
+    
+    // If it's a new video, fetch. If it's the same video but text escaped, use cache.
+    if (videoId !== lastFetchedId) {
+      isUpdating = true
+      try {
+        await fetchVotes(videoId)
+        dislikesCache = numberFormat(dislikesValue)
+        lastFetchedId = videoId
+      } catch (e) {
+        console.error("[YT-Halo] Fetch error:", e)
+      } finally {
+        isUpdating = false
+      }
+    }
 
-    try {
-      await fetchVotes(videoId)
-      textContainer.innerText = numberFormat(dislikesValue)
-    } catch (e) {
-      console.error("[YT-Halo] Fetch error:", e)
+    // Apply the text
+    if (textContainer.innerText !== dislikesCache) {
+      textContainer.innerText = dislikesCache
+      // Remove the 'is-empty' attribute which YouTube uses to hide text
+      textContainer.removeAttribute("is-empty") 
     }
   }
+}
+
+// --------------------
+// Efficient Observation
+// --------------------
+
+// This replaces the heavy setInterval
+const setupObserver = () => {
+  const observer = new MutationObserver(() => {
+    updateDom()
+  })
+
+  // Watch the body for changes in the menu or navigation
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  })
 }
 
 // --------------------
 // Lifecycle
 // --------------------
 
+// 1. Handle Navigation
 window.addEventListener("yt-navigate-finish", () => {
-  setTimeout(updateDom, 400)
+  // Small delay to let YT finish its initial DOM swap
+  setTimeout(updateDom, 200)
 })
 
-setInterval(updateDom, 1000)
-
-window.addEventListener("load", updateDom)
-
-document.addEventListener("click", () => {
-  setTimeout(updateDom, 300)
-})
+// 2. Initial Load
+if (document.readyState === "complete") {
+  updateDom()
+  setupObserver()
+} else {
+  window.addEventListener("load", () => {
+    updateDom()
+    setupObserver()
+  })
+}
