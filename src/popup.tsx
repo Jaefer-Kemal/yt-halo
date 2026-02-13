@@ -45,6 +45,7 @@ function PopupApp() {
 
 function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [showRestoreModal, setShowRestoreModal] = useState(false)
+  const [showHideShortsModal, setShowHideShortsModal] = useState(false)
   // --- STORAGE LOGIC ---
   const [dailyLimit] = useStorage(KEYS.DAILY_LIMIT, 60)
   const [dailyUsage] = useStorage(KEYS.DAILY_USAGE, 0)
@@ -70,7 +71,6 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
   const mins = remainingMinutes % 60
 
   // Handler for restore dislikes toggle
-  // Use chrome.storage.local.set for correct logic
   const handleRestoreDislikesChange = (checked: boolean) => {
     if (!checked) {
       setShowRestoreModal(true)
@@ -92,6 +92,30 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
 
   const cancelDisableRestore = () => {
     setShowRestoreModal(false)
+  }
+
+  // Handler for Hide Shorts toggle
+  const handleHideShortsChange = (checked: boolean) => {
+    if (checked) {
+      chrome.storage?.local.set({ hideShorts: true }, () => {
+        setHideShorts(true)
+        window.location.reload()
+      })
+    } else {
+      setShowHideShortsModal(true)
+    }
+  }
+
+  const confirmDisableHideShorts = () => {
+    chrome.storage?.local.set({ hideShorts: false }, () => {
+      setHideShorts(false)
+      setShowHideShortsModal(false)
+      window.location.reload()
+    })
+  }
+
+  const cancelDisableHideShorts = () => {
+    setShowHideShortsModal(false)
   }
 
   return (
@@ -148,7 +172,7 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
             title="Hide Shorts"
             subtitle="Remove from feed"
             checked={hideShorts}
-            onChange={setHideShorts}
+            onChange={handleHideShortsChange}
           />
           <ToggleCard
             icon="swap_vert"
@@ -210,6 +234,22 @@ function HomeView({ onOpenSettings }: { onOpenSettings: () => void }) {
             <div className="flex gap-3 mt-4 justify-center">
               <button onClick={confirmDisableRestore} className="px-4 py-2 rounded-lg bg-primary text-black font-semibold">Yes, Disable</button>
               <button onClick={cancelDisableRestore} className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-[#234848] text-gray-900 dark:text-white font-semibold">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Confirmation Modal for disabling Hide Shorts */}
+      {showHideShortsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#162a2a] rounded-2xl p-6 shadow-xl max-w-xs w-full text-center border border-gray-200 dark:border-[#234848]/50">
+            <div className="mb-4">
+              <span className="material-symbols-outlined text-4xl text-primary mb-2">warning</span>
+              <h2 className="text-lg font-bold mb-2">Show Shorts Again?</h2>
+              <p className="text-sm text-gray-600 dark:text-[#92c9c9]">Are you sure you want to show YouTube Shorts again?</p>
+            </div>
+            <div className="flex gap-3 mt-4 justify-center">
+              <button onClick={confirmDisableHideShorts} className="px-4 py-2 rounded-lg bg-primary text-black font-semibold">Yes, Show</button>
+              <button onClick={cancelDisableHideShorts} className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-[#234848] text-gray-900 dark:text-white font-semibold">Cancel</button>
             </div>
           </div>
         </div>
